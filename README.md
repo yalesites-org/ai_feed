@@ -13,7 +13,7 @@ The AI Feed module, developed by Yale ITS, is designed to create a feed of websi
 
 ## Feed Shape
 
-This module creates an enpoint of website content at `api/ai/v1/content`. Currently this feed is limited to published nodes that are accessible to anonymous users. In the future this may be expanded to include filters and new entity types. The shape of the JSON is as follows:
+This module creates an endpoint of website content at `api/ai/v1/content`. Currently, this feed is limited to published nodes that are accessible to anonymous users. In the future, this may be expanded to include filters and new entity types. The shape of the JSON is as follows:
 
 ```json
 [
