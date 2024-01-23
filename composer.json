@@ -1,0 +1,5 @@
+{
+  "name": "yalesites-org/ai_feed",
+  "description": "Provides JSON feeds of website content for AI ingestion.",
+  "type": "drupal-module"
+}
