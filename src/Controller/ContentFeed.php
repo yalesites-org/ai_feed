@@ -31,7 +31,6 @@ class ContentFeed extends ControllerBase {
     */
   public function jsonResponse() {
     $content = $this->sources->getContent();
-    return ['thth'];
     $response = new JsonResponse($content);
     $response->headers->set('Content-Type', 'application/json');
     return $response;
