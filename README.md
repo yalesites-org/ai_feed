@@ -18,8 +18,8 @@ This module creates an endpoint of website content at `api/ai/v1/content`. Curre
 ```json
 [
   {
-    "url": "yalesites-yale.edu-node-18",
-    "source": "drupal"
+    "id": "yalesites-yale.edu-node-18",
+    "source": "drupal",
     "documentType": "node/page",
     "documentId": 18,
     "documentTitle": "Resources and Workshops",
