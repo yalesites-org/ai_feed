@@ -3,7 +3,7 @@
 namespace Drupal\ai_feed\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\ai_feed\Sources;
+use Drupal\ai_feed\Service\Sources;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -19,7 +19,7 @@ class ContentFeed extends ControllerBase {
   /**
    * The AI Feed Sources service.
    *
-   * @var \Drupal\ai_feed\Sources
+   * @var \Drupal\ai_feed\Service\Sources
    */
   protected $sources;
 
@@ -31,6 +31,7 @@ class ContentFeed extends ControllerBase {
     */
   public function jsonResponse() {
     $content = $this->sources->getContent();
+    return ['thth'];
     $response = new JsonResponse($content);
     $response->headers->set('Content-Type', 'application/json');
     return $response;
@@ -39,7 +40,7 @@ class ContentFeed extends ControllerBase {
   /**
    * Constructs a new ContentFeed controller.
    *
-   * @param \Drupal\ai_feed\Sources $sources
+   * @param \Drupal\ai_feed\Service\Sources $sources
    *   The AI Feed Sources service.
    */
   public function __construct(Sources $sources) {

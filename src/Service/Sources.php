@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\ai_feed;
+namespace Drupal\ai_feed\Service;
 
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityInterface;
@@ -39,6 +39,13 @@ class Sources {
   protected $renderer;
 
   /**
+   * The request stack.
+   *
+   * @var \Symfony\Component\HttpFoundation\RequestStack
+   */
+  protected $requestStack;
+
+  /**
    * Retrieves and array of content for the AI feed.
    *
    * This method delivers all published nodes that are accessible to anonymous
@@ -63,10 +70,11 @@ class Sources {
     $entityData = [];
     foreach ($entities as $entity) {
       $entityData[] = [
+        'id' => $this->getSearchIndexId($entity),
         'source' => 'drupal',
-        'url' => $this->getUrl($entity),
         'documentType' => $this->getDocumentType($entity),
         'documentId' => $entity->id(),
+        'documentUrl' => $this->getUrl($entity),
         'documentTitle' => $entity->getTitle(),
         'documentContent' => $this->processContentBody($entity),
         'metaTags' => '',
@@ -108,6 +116,24 @@ class Sources {
     return $this->renderer->render($renderArray);
   }
 
+
+  /**
+   * Get a unique ID to reference this item in the search index.
+   *
+   * Examples: "ask-yale-edu-node-14" or "hospitality-yale-edu-media-128".
+   *
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   A content entity.
+   *
+   * @return string
+   *   A predictable and unique ID to reference this item in the search index.
+   */
+  public function getSearchIndexId(EntityInterface $entity) {
+    $host = \Drupal::request()->getHttpHost();
+    $host = preg_replace('/[^a-zA-Z0-9]+/', '-', $host);
+    return $host . '-' . $entity->getEntityTypeId() . '-' . $entity->id();
+  }
+
   /**
    * Gets a standardizaed document type.
    *
@@ -144,21 +170,25 @@ class Sources {
   /**
    * Constructs a new Sources object.
    *
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
    *   The entity type manager service.
    * @param \Psr\Log\LoggerInterface $logger
    *   The logger service.
    * @param \Drupal\Core\Render\RendererInterface $renderer
    *   The renderer service.
+   * @param \Symfony\Component\HttpFoundation\RequestStack $requestStack
+   *   The request stack.
    */
   public function __construct(
-    EntityTypeManagerInterface $entity_type_manager,
+    EntityTypeManagerInterface $entityTypeManager,
     LoggerInterface $logger,
-    RendererInterface $renderer
+    RendererInterface $renderer,
+    RequestStack $requestStack
   ) {
-    $this->entityTypeManager = $entity_type_manager;
+    $this->entityTypeManager = $entityTypeManager;
     $this->logger = $logger;
     $this->renderer = $renderer;
+    $this->requestStack = $requestStack;
   }
 
 }

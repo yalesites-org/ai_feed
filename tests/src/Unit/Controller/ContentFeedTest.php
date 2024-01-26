@@ -3,7 +3,7 @@
 namespace Drupal\Tests\ai_feed\Unit\Controller;
 
 use Drupal\ai_feed\Controller\ContentFeed;
-use Drupal\ai_feed\Sources;
+use Drupal\ai_feed\Service\Sources;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Drupal\Tests\UnitTestCase;
 
@@ -17,7 +17,7 @@ class ContentFeedTest extends UnitTestCase {
   /**
    * The AI Feed Sources service mock.
    *
-   * @var \Drupal\ai_feed\Sources|\PHPUnit\Framework\MockObject\MockObject
+   * @var \Drupal\ai_feed\Service\Sources|\PHPUnit\Framework\MockObject\MockObject
    */
   protected $sourcesMock;
 

@@ -18,11 +18,12 @@ This module creates an endpoint of website content at `api/ai/v1/content`. Curre
 ```json
 [
   {
-    "source": "drupal",
-    "url": "https://yalesites.yale.edu/resource",
+    "url": "yalesites-yale.edu-node-18",
+    "source": "drupal"
     "documentType": "node/page",
     "documentId": 18,
     "documentTitle": "Resources and Workshops",
+    "documentUrl": "https://yalesites.yale.edu/resource",
     "documentContent": "...",
     "metaTags": "",
     "metaDescription": "",
@@ -36,11 +37,11 @@ This module creates an endpoint of website content at `api/ai/v1/content`. Curre
 
 | Field           | Type    | Description                                |
 |-----------------|---------|--------------------------------------------|
-| source          | String  | Hardcoded to the value 'Drupal'            |
-| url             | String  | The absolute path to the canonical view    |
+| id              | String  | A unique id used by the search index       |
 | documentType    | String  | Follows the pattern entityTypeId/bundle    |
 | documentId      | Int     | The entity id                              |
 | documentTitle   | String  | The title or label of the entity           |
+| documentUrl     | String  | The absolute path to the canonical view    |
 | documentContent | String  | The rendered default display of the entity |
 | metaTags        | String  | Currently empty but will be used soon      |
 | metaDescription | String  | Currently empty but will be used soon      |
