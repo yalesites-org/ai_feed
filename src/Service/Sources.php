@@ -58,7 +58,7 @@ class Sources {
    *
    * This method delivers all published nodes that are accessible to anonymous
    * users. In the future, this query can grow to include new filters and entity
-   * types. This method also processes the content to put it into a consistant
+   * types. This method also processes the content to put it into a consistent
    * and expected format.
    *
    * @return array
@@ -86,10 +86,10 @@ class Sources {
    *   An array of content data for the AI feed.
    */
   protected function getEntityData($page) {
-
-    // Query to build a collection of content to be ingested.
+    // Get offset of records based on page.
     $offset = ($page - 1) * self::RECORDS_PER_PAGE;
 
+    // Query to build a collection of content to be ingested.
     $query = $this->entityTypeManager
       ->getStorage('node')
       ->getQuery()
@@ -133,7 +133,7 @@ class Sources {
   protected function getApiLinks($page) {
     $host = $this->requestStack->getCurrentRequest()->getSchemeAndHttpHost();
     $baseUrl = "{$host}/api/ai/v1/content?page=";
-    $apiTotals = $this->getApiTotals($page);
+    $apiTotals = $this->getApiTotals();
 
     $prevPageLink = "";
     if ($apiTotals['total_pages'] > 1 && $page > 1 && $page <= $apiTotals['total_pages']) {
@@ -153,10 +153,10 @@ class Sources {
     }
 
     $apiLinks = [
+      'first' => $baseUrl . 1,
       'prev' => $prevPageLink,
       'self' => $selfPageLink,
       'next' => $nextPageLink,
-      'first' => $baseUrl . 1,
       'last' => $baseUrl . $apiTotals['total_pages'],
     ];
 

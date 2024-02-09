@@ -39,7 +39,7 @@ class ContentFeed extends ControllerBase {
    */
   public function jsonResponse() {
 
-    $page = $this->requestStack->getCurrentRequest()->get('page');
+    $page = $this->requestStack->getCurrentRequest()->get('page') ?? 1;
 
     // Tests the query parameter to make sure we have a positive integer.
     $filter_options = [
