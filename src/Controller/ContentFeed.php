@@ -6,6 +6,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\ai_feed\Service\Sources;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Class ContentFeed.
@@ -23,14 +24,35 @@ class ContentFeed extends ControllerBase {
    */
   protected $sources;
 
-   /**
-    * Returns content and metadata in a JSON response.
-    *
-    * @var \Symfony\Component\HttpFoundation\JsonResponse
-    *   A JSON response.
-    */
+  /**
+   * The request stack.
+   *
+   * @var \Symfony\Component\HttpFoundation\RequestStack
+   */
+  protected $requestStack;
+
+  /**
+   * Returns content and metadata in a JSON response.
+   *
+   * @var \Symfony\Component\HttpFoundation\JsonResponse
+   *   A JSON response.
+   */
   public function jsonResponse() {
-    $content = $this->sources->getContent();
+
+    $page = $this->requestStack->getCurrentRequest()->get('page');
+
+    // Tests the query parameter to make sure we have a positive integer.
+    $filter_options = [
+      'options' => [
+        'min_range' => 1,
+      ],
+    ];
+
+    if (filter_var($page, FILTER_VALIDATE_INT, $filter_options) == FALSE) {
+      $page = 1;
+    }
+
+    $content = $this->sources->getContent($page);
     $response = new JsonResponse($content);
     $response->headers->set('Content-Type', 'application/json');
     return $response;
@@ -41,16 +63,22 @@ class ContentFeed extends ControllerBase {
    *
    * @param \Drupal\ai_feed\Service\Sources $sources
    *   The AI Feed Sources service.
+   * @param \Symfony\Component\HttpFoundation\RequestStack $request_stack
+   *   The request stack.
    */
-  public function __construct(Sources $sources) {
+  public function __construct(Sources $sources, RequestStack $request_stack) {
     $this->sources = $sources;
+    $this->requestStack = $request_stack;
   }
 
   /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container) {
-    return new static($container->get('ai_feed.sources'));
+    return new static(
+      $container->get('ai_feed.sources'),
+      $container->get('request_stack'),
+    );
   }
 
 }
