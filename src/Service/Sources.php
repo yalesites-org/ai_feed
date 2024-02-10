@@ -6,6 +6,8 @@ use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Render\RendererInterface;
+use Drupal\Core\Utility\Token;
+use Drupal\metatag\MetatagManager;
 use Drupal\node\NodeInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -47,11 +49,57 @@ class Sources {
   protected $requestStack;
 
   /**
+   * The metatag manager.
+   *
+   * @var \Drupal\Core\Utility\Token
+   */
+  protected $token;
+
+  /**
+   * Tokens.
+   *
+   * @var \Drupal\metatag\MetatagManager
+   */
+  protected $metatagManager;
+
+  /**
    * Number of records per page.
    *
    * @var int
    */
   const RECORDS_PER_PAGE = 50;
+
+  /**
+   * Constructs a new Sources object.
+   *
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
+   *   The entity type manager service.
+   * @param \Psr\Log\LoggerInterface $logger
+   *   The logger service.
+   * @param \Drupal\Core\Render\RendererInterface $renderer
+   *   The renderer service.
+   * @param \Symfony\Component\HttpFoundation\RequestStack $requestStack
+   *   The request stack.
+   * @param \Drupal\metatag\MetatagManager $metatag_manager
+   *   The metatag manager.
+   * @param \Drupal\Core\Utility\Token $token
+   *   The token class.
+   */
+  public function __construct(
+    EntityTypeManagerInterface $entityTypeManager,
+    LoggerInterface $logger,
+    RendererInterface $renderer,
+    RequestStack $requestStack,
+    MetatagManager $metatag_manager,
+    Token $token,
+  ) {
+    $this->entityTypeManager = $entityTypeManager;
+    $this->logger = $logger;
+    $this->renderer = $renderer;
+    $this->requestStack = $requestStack;
+    $this->metatagManager = $metatag_manager;
+    $this->token = $token;
+  }
 
   /**
    * Retrieves and array of content for the AI feed.
@@ -103,20 +151,23 @@ class Sources {
     $entityData = [];
     foreach ($entities as $entity) {
       /** @var \Drupal\node\Entity\Node $entity */
-      $entityData[] = [
-        'id' => $this->getSearchIndexId($entity),
-        'source' => 'drupal',
-        'documentType' => $this->getDocumentType($entity),
-        'documentId' => $entity->id(),
-        'documentUrl' => $this->getUrl($entity),
-        'documentTitle' => $entity->getTitle(),
-        'documentContent' => $this->processContentBody($entity),
-        'metaTags' => '',
-        'metaDescription' => '',
-        'dateCreated' => $this->formatTimestamp($entity->getCreatedTime()),
-        'dateModified' => $this->formatTimestamp($entity->getChangedTime()),
-        'dateProcessed' => $this->formatTimestamp(time()),
-      ];
+      // Not including nodes that are marked to be excluded from the AI index.
+      if (!$this->getMetadata($entity)['ai_disable_index']) {
+        $entityData[] = [
+          'id' => $this->getSearchIndexId($entity),
+          'source' => 'drupal',
+          'documentType' => $this->getDocumentType($entity),
+          'documentId' => $entity->id(),
+          'documentUrl' => $this->getUrl($entity),
+          'documentTitle' => $entity->getTitle(),
+          'documentContent' => $this->processContentBody($entity),
+          'metaTags' => '',
+          'metaDescription' => $this->getMetadata($entity)['ai_description'],
+          'dateCreated' => $this->formatTimestamp($entity->getCreatedTime()),
+          'dateModified' => $this->formatTimestamp($entity->getChangedTime()),
+          'dateProcessed' => $this->formatTimestamp(time()),
+        ];
+      }
     }
     return $entityData;
   }
@@ -178,7 +229,15 @@ class Sources {
       ->accessCheck(TRUE);
     $ids = $total->execute();
 
-    $totalEntities = count($ids);
+    // This will unset nodes that are marked to be excluded from the AI index.
+    $entities = $this->entityTypeManager->getStorage('node')->loadMultiple($ids);
+    foreach ($entities as $key => $entity) {
+      if ($this->getMetadata($entity)['ai_disable_index']) {
+        unset($entities[$key]);
+      }
+    }
+
+    $totalEntities = count($entities);
     $totalPages = ceil($totalEntities / self::RECORDS_PER_PAGE);
 
     $apiTotals = [
@@ -269,27 +328,25 @@ class Sources {
   }
 
   /**
-   * Constructs a new Sources object.
+   * Retrieves AI specific metadata from nodes.
    *
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
-   *   The entity type manager service.
-   * @param \Psr\Log\LoggerInterface $logger
-   *   The logger service.
-   * @param \Drupal\Core\Render\RendererInterface $renderer
-   *   The renderer service.
-   * @param \Symfony\Component\HttpFoundation\RequestStack $requestStack
-   *   The request stack.
+   * @param \Drupal\Core\Entity\EntityInterface $entity
+   *   A content entity.
+   *
+   * @return array
+   *   An array of AI metadata.
    */
-  public function __construct(
-    EntityTypeManagerInterface $entityTypeManager,
-    LoggerInterface $logger,
-    RendererInterface $renderer,
-    RequestStack $requestStack
-  ) {
-    $this->entityTypeManager = $entityTypeManager;
-    $this->logger = $logger;
-    $this->renderer = $renderer;
-    $this->requestStack = $requestStack;
+  protected function getMetadata(EntityInterface $entity) {
+    $tags = $this->metatagManager->tagsFromEntity($entity);
+    $aiDesc = isset($tags['ai_description']) ? $this->token->replace($tags['ai_description'], ['node' => $entity]) : "";
+    $aiDisableIndex = isset($tags['ai_disable_indexing']) ? TRUE : FALSE;
+
+    $metaData = [
+      'ai_description' => $aiDesc,
+      'ai_disable_index' => $aiDisableIndex,
+    ];
+
+    return $metaData;
   }
 
 }

@@ -7,3 +7,5 @@ version: 1.0
 project: 'ai_feed'
 dependencies:
   - node:node
+  - metatag
+  - ai_metadata
