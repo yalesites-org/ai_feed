@@ -149,7 +149,7 @@ class Sources {
           'documentUrl' => $this->getUrl($entity),
           'documentTitle' => $entity->getTitle(),
           'documentContent' => $this->processContentBody($entity),
-          'metaTags' => '',
+          'metaTags' => $this->aiMetadataManager->getAiMetadata($entity)['ai_tags'],
           'metaDescription' => $this->aiMetadataManager->getAiMetadata($entity)['ai_description'],
           'dateCreated' => $this->formatTimestamp($entity->getCreatedTime()),
           'dateModified' => $this->formatTimestamp($entity->getChangedTime()),
