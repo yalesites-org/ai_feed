@@ -132,6 +132,14 @@ class Sources {
       ->condition('status', NodeInterface::PUBLISHED)
       ->range($offset, self::RECORDS_PER_PAGE)
       ->accessCheck(TRUE);
+
+    // Not including nodes that are marked to be excluded from the AI index.
+    $andCondition = $query->orConditionGroup()
+      ->condition('field_metatags', '%ai_disable_indexing%', 'NOT LIKE')
+      ->condition('field_metatags', NULL, 'IS NULL');
+
+    $query->condition($andCondition);
+
     $ids = $query->execute();
     $entities = $this->entityTypeManager->getStorage('node')->loadMultiple($ids);
 
@@ -140,22 +148,20 @@ class Sources {
     foreach ($entities as $entity) {
       /** @var \Drupal\node\Entity\Node $entity */
       // Not including nodes that are marked to be excluded from the AI index.
-      if (!$this->aiMetadataManager->getAiMetadata($entity)['ai_disable_index']) {
-        $entityData[] = [
-          'id' => $this->getSearchIndexId($entity),
-          'source' => 'drupal',
-          'documentType' => $this->getDocumentType($entity),
-          'documentId' => $entity->id(),
-          'documentUrl' => $this->getUrl($entity),
-          'documentTitle' => $entity->getTitle(),
-          'documentContent' => $this->processContentBody($entity),
-          'metaTags' => $this->aiMetadataManager->getAiMetadata($entity)['ai_tags'],
-          'metaDescription' => $this->aiMetadataManager->getAiMetadata($entity)['ai_description'],
-          'dateCreated' => $this->formatTimestamp($entity->getCreatedTime()),
-          'dateModified' => $this->formatTimestamp($entity->getChangedTime()),
-          'dateProcessed' => $this->formatTimestamp(time()),
-        ];
-      }
+      $entityData[] = [
+        'id' => $this->getSearchIndexId($entity),
+        'source' => 'drupal',
+        'documentType' => $this->getDocumentType($entity),
+        'documentId' => $entity->id(),
+        'documentUrl' => $this->getUrl($entity),
+        'documentTitle' => $entity->getTitle(),
+        'documentContent' => $this->processContentBody($entity),
+        'metaTags' => $this->aiMetadataManager->getAiMetadata($entity)['ai_tags'],
+        'metaDescription' => $this->aiMetadataManager->getAiMetadata($entity)['ai_description'],
+        'dateCreated' => $this->formatTimestamp($entity->getCreatedTime()),
+        'dateModified' => $this->formatTimestamp($entity->getChangedTime()),
+        'dateProcessed' => $this->formatTimestamp(time()),
+      ];
     }
     return $entityData;
   }
@@ -215,16 +221,16 @@ class Sources {
       ->getQuery()
       ->condition('status', NodeInterface::PUBLISHED)
       ->accessCheck(TRUE);
+
+    // Remove nodes that are marked to be excluded from the AI index.
+    $andCondition = $total->orConditionGroup()
+      ->condition('field_metatags', '%ai_disable_indexing%', 'NOT LIKE')
+      ->condition('field_metatags', NULL, 'IS NULL');
+
+    $total->condition($andCondition);
     $ids = $total->execute();
 
-    // This will unset nodes that are marked to be excluded from the AI index.
     $entities = $this->entityTypeManager->getStorage('node')->loadMultiple($ids);
-    foreach ($entities as $key => $entity) {
-      if ($this->aiMetadataManager->getAiMetadata($entity)['ai_disable_index']) {
-        unset($entities[$key]);
-      }
-    }
-
     $totalEntities = count($entities);
     $totalPages = ceil($totalEntities / self::RECORDS_PER_PAGE);
 
