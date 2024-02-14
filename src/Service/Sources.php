@@ -47,29 +47,62 @@ class Sources {
   protected $requestStack;
 
   /**
+   * Number of records per page.
+   *
+   * @var int
+   */
+  const RECORDS_PER_PAGE = 50;
+
+  /**
    * Retrieves and array of content for the AI feed.
    *
    * This method delivers all published nodes that are accessible to anonymous
    * users. In the future, this query can grow to include new filters and entity
-   * types. This method also processes the content to put it into a consistant
+   * types. This method also processes the content to put it into a consistent
    * and expected format.
    *
    * @return array
    *   An array of content data for the AI feed.
    */
-  public function getContent(): array {
+  public function getContent($page = 1): array {
+
+    $jsonReturn = [
+      'data' => $this->getEntityData($page),
+      'links' => $this->getApiLinks($page),
+      'totals' => $this->getApiTotals(),
+    ];
+
+    return $jsonReturn;
+
+  }
+
+  /**
+   * Retrieves entity data.
+   *
+   * @param int $page
+   *   The current page to retrieve data from.
+   *
+   * @return array
+   *   An array of content data for the AI feed.
+   */
+  protected function getEntityData($page) {
+    // Get offset of records based on page.
+    $offset = ($page - 1) * self::RECORDS_PER_PAGE;
+
     // Query to build a collection of content to be ingested.
     $query = $this->entityTypeManager
       ->getStorage('node')
       ->getQuery()
       ->condition('status', NodeInterface::PUBLISHED)
+      ->range($offset, self::RECORDS_PER_PAGE)
       ->accessCheck(TRUE);
     $ids = $query->execute();
-    $entities = \Drupal\node\Entity\Node::loadMultiple($ids);
+    $entities = $this->entityTypeManager->getStorage('node')->loadMultiple($ids);
 
     // Process the collection to fit the shape of the API.
     $entityData = [];
     foreach ($entities as $entity) {
+      /** @var \Drupal\node\Entity\Node $entity */
       $entityData[] = [
         'id' => $this->getSearchIndexId($entity),
         'source' => 'drupal',
@@ -86,6 +119,74 @@ class Sources {
       ];
     }
     return $entityData;
+  }
+
+  /**
+   * Retrieves API links.
+   *
+   * @param int $page
+   *   The current page to calculate page links.
+   *
+   * @return array
+   *   An array of API links.
+   */
+  protected function getApiLinks($page) {
+    $host = $this->requestStack->getCurrentRequest()->getSchemeAndHttpHost();
+    $baseUrl = "{$host}/api/ai/v1/content?page=";
+    $apiTotals = $this->getApiTotals();
+
+    $prevPageLink = "";
+    if ($apiTotals['total_pages'] > 1 && $page > 1 && $page <= $apiTotals['total_pages']) {
+      $prevPage = $page - 1;
+      $prevPageLink = $baseUrl . $prevPage;
+    }
+
+    $selfPageLink = "";
+    if ($page <= $apiTotals['total_pages']) {
+      $selfPageLink = $baseUrl . $page;
+    }
+
+    $nextPageLink = "";
+    if ($apiTotals['total_pages'] > 1 && $page < $apiTotals['total_pages']) {
+      $nextPage = $page + 1;
+      $nextPageLink = $baseUrl . $nextPage;
+    }
+
+    $apiLinks = [
+      'first' => $baseUrl . 1,
+      'prev' => $prevPageLink,
+      'self' => $selfPageLink,
+      'next' => $nextPageLink,
+      'last' => $baseUrl . $apiTotals['total_pages'],
+    ];
+
+    return $apiLinks;
+  }
+
+  /**
+   * Retrieves API totals.
+   *
+   * @return array
+   *   An array of API totals.
+   */
+  protected function getApiTotals() {
+    // Total entities.
+    $total = $this->entityTypeManager
+      ->getStorage('node')
+      ->getQuery()
+      ->condition('status', NodeInterface::PUBLISHED)
+      ->accessCheck(TRUE);
+    $ids = $total->execute();
+
+    $totalEntities = count($ids);
+    $totalPages = ceil($totalEntities / self::RECORDS_PER_PAGE);
+
+    $apiTotals = [
+      'total_records' => $totalEntities,
+      'total_pages' => $totalPages,
+    ];
+
+    return $apiTotals;
   }
 
   /**
@@ -117,7 +218,6 @@ class Sources {
     return $this->renderer->render($renderArray);
   }
 
-
   /**
    * Get a unique ID to reference this item in the search index.
    *
@@ -130,13 +230,13 @@ class Sources {
    *   A predictable and unique ID to reference this item in the search index.
    */
   public function getSearchIndexId(EntityInterface $entity) {
-    $host = \Drupal::request()->getHttpHost();
+    $host = $this->requestStack->getCurrentRequest()->getHttpHost();
     $host = preg_replace('/[^a-zA-Z0-9]+/', '-', $host);
     return $host . '-' . $entity->getEntityTypeId() . '-' . $entity->id();
   }
 
   /**
-   * Gets a standardizaed document type.
+   * Gets a standardized document type.
    *
    * Document type is the name of the Drupal entity and possible bundle.
    * Examples: "node/post", "media/image", or "user".
