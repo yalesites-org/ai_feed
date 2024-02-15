@@ -2,6 +2,7 @@
 
 namespace Drupal\ai_feed\Service;
 
+use Drupal\ai_metadata\AiMetadataManager;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -47,11 +48,46 @@ class Sources {
   protected $requestStack;
 
   /**
+   * AI Metadata Manager.
+   *
+   * @var \Drupal\ai_metadata\AiMetadataManager
+   */
+  protected $aiMetadataManager;
+
+  /**
    * Number of records per page.
    *
    * @var int
    */
   const RECORDS_PER_PAGE = 50;
+
+  /**
+   * Constructs a new Sources object.
+   *
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
+   *   The entity type manager service.
+   * @param \Psr\Log\LoggerInterface $logger
+   *   The logger service.
+   * @param \Drupal\Core\Render\RendererInterface $renderer
+   *   The renderer service.
+   * @param \Symfony\Component\HttpFoundation\RequestStack $requestStack
+   *   The request stack.
+   * @param \Drupal\ai_metadata\AiMetadataManager $ai_metadata_manager
+   *   The AI metadata manager.
+   */
+  public function __construct(
+    EntityTypeManagerInterface $entityTypeManager,
+    LoggerInterface $logger,
+    RendererInterface $renderer,
+    RequestStack $requestStack,
+    AiMetadataManager $ai_metadata_manager,
+  ) {
+    $this->entityTypeManager = $entityTypeManager;
+    $this->logger = $logger;
+    $this->renderer = $renderer;
+    $this->requestStack = $requestStack;
+    $this->aiMetadataManager = $ai_metadata_manager;
+  }
 
   /**
    * Retrieves and array of content for the AI feed.
@@ -96,6 +132,14 @@ class Sources {
       ->condition('status', NodeInterface::PUBLISHED)
       ->range($offset, self::RECORDS_PER_PAGE)
       ->accessCheck(TRUE);
+
+    // Not including nodes that are marked to be excluded from the AI index.
+    $andCondition = $query->orConditionGroup()
+      ->condition('field_metatags', '%ai_disable_indexing%', 'NOT LIKE')
+      ->condition('field_metatags', NULL, 'IS NULL');
+
+    $query->condition($andCondition);
+
     $ids = $query->execute();
     $entities = $this->entityTypeManager->getStorage('node')->loadMultiple($ids);
 
@@ -103,6 +147,7 @@ class Sources {
     $entityData = [];
     foreach ($entities as $entity) {
       /** @var \Drupal\node\Entity\Node $entity */
+      // Not including nodes that are marked to be excluded from the AI index.
       $entityData[] = [
         'id' => $this->getSearchIndexId($entity),
         'source' => 'drupal',
@@ -111,8 +156,8 @@ class Sources {
         'documentUrl' => $this->getUrl($entity),
         'documentTitle' => $entity->getTitle(),
         'documentContent' => $this->processContentBody($entity),
-        'metaTags' => '',
-        'metaDescription' => '',
+        'metaTags' => $this->aiMetadataManager->getAiMetadata($entity)['ai_tags'],
+        'metaDescription' => $this->aiMetadataManager->getAiMetadata($entity)['ai_description'],
         'dateCreated' => $this->formatTimestamp($entity->getCreatedTime()),
         'dateModified' => $this->formatTimestamp($entity->getChangedTime()),
         'dateProcessed' => $this->formatTimestamp(time()),
@@ -176,9 +221,17 @@ class Sources {
       ->getQuery()
       ->condition('status', NodeInterface::PUBLISHED)
       ->accessCheck(TRUE);
+
+    // Remove nodes that are marked to be excluded from the AI index.
+    $andCondition = $total->orConditionGroup()
+      ->condition('field_metatags', '%ai_disable_indexing%', 'NOT LIKE')
+      ->condition('field_metatags', NULL, 'IS NULL');
+
+    $total->condition($andCondition);
     $ids = $total->execute();
 
-    $totalEntities = count($ids);
+    $entities = $this->entityTypeManager->getStorage('node')->loadMultiple($ids);
+    $totalEntities = count($entities);
     $totalPages = ceil($totalEntities / self::RECORDS_PER_PAGE);
 
     $apiTotals = [
@@ -266,30 +319,6 @@ class Sources {
    */
   protected function getUrl(EntityInterface $entity) {
     return $entity->toUrl('canonical', ['absolute' => TRUE])->toString();
-  }
-
-  /**
-   * Constructs a new Sources object.
-   *
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entityTypeManager
-   *   The entity type manager service.
-   * @param \Psr\Log\LoggerInterface $logger
-   *   The logger service.
-   * @param \Drupal\Core\Render\RendererInterface $renderer
-   *   The renderer service.
-   * @param \Symfony\Component\HttpFoundation\RequestStack $requestStack
-   *   The request stack.
-   */
-  public function __construct(
-    EntityTypeManagerInterface $entityTypeManager,
-    LoggerInterface $logger,
-    RendererInterface $renderer,
-    RequestStack $requestStack
-  ) {
-    $this->entityTypeManager = $entityTypeManager;
-    $this->logger = $logger;
-    $this->renderer = $renderer;
-    $this->requestStack = $requestStack;
   }
 
 }
